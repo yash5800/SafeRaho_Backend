@@ -1,0 +1,9 @@
+{
+  "uuid": "4cd452ef-05c8-4ceb-b848-a51b54683de9",
+  "name": "Devil Duke",
+  "pwd": "sh33325fvsvsdkjsd3",
+  "email": "devil.duke@example.com",
+  "twoFactorSecret": "HUAAYNLZAMGTI4RY",
+  "twoFactorEnabled": true,
+  "twoFactorNonce": ""
+}
