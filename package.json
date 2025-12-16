@@ -1,5 +1,15 @@
 {
+  "type": "module",
+  "name": "saferaho-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
+    "@sanity/client": "^7.13.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "libsodium-wrappers": "^0.7.15",
     "otplib": "^12.0.1",
     "qrcode": "^1.5.4",

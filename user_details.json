@@ -3,10 +3,9 @@
   "name": "Devil Duke",
   "pwd": "sh33325fvsvsdkjsd3",
   "email": "devil.duke@example.com",
-  "twoFactorSecret": {
+  "twoFactorSecrets": {
     "cipherText": "s4pk1tYXkD0T2U6C4WaxwPuX2+nR829OzkZ1HWFHeTc=",
     "nonce": "YJyrrkkuG+xt9eOkLu1C7lHPRr76OpHy"
   },
-  "twoFactorEnabled": true,
-  "twoFactorNonce": ""
+  "twoFactorEnabled": true
 }

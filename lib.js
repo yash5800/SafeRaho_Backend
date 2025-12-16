@@ -6,9 +6,11 @@ const user_details = {
   name: 'Devil Duke',
   pwd: 'sh33325fvsvsdkjsd3',
   email: 'devil.duke@example.com',
-  twoFactorSecret : '',
-  twoFactorEnabled : false,
-  twoFactorNonce : ''
+  twoFactorSecrets : {
+    cipherText: '',
+    nonce: ''
+  },
+  twoFactorEnabled : false
 }
 
 function getUserDetails() {
