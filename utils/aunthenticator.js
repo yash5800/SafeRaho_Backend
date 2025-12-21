@@ -1,13 +1,14 @@
-const { encryptionKey, deriveKeyFromPassphrase, decryptionKey } = require('./cryptography');
-const { authenticator } = require('otplib');
-const qrcode = require('qrcode');
-const fs = require('fs');
-const { checkUserDetailsExists, saveUserDetails } = require('./lib');
+import { encryptionKey, deriveKeyFromPassphrase, decryptionKey } from './cryptography.js';
+import { authenticator } from 'otplib';
+import { updateUser2FA } from '../services/account.services.js';
 
 const twoFactorPassphrase = 'Supreme_Emperor_Nika';
 
 async function createAuthenticator(user_details){
-  if(user_details.twoFactorEnabled){
+
+  console.log('Creating authenticator for user details:', user_details);
+
+  if(user_details.twoFactorEnable){
     console.log('User details already exist. Exiting to prevent overwrite.');
     return {
       message: 'User details already exist. No changes made.',
@@ -20,7 +21,7 @@ async function createAuthenticator(user_details){
     const secret = authenticator.generateSecret();
 
     try{
-      user_details.twoFactorSecret = await encryptionKey(secret, await deriveKeyFromPassphrase(twoFactorPassphrase));
+      user_details.twoFactorSecrets = await encryptionKey(secret, await deriveKeyFromPassphrase(twoFactorPassphrase));
     }
     catch(err){
       console.error('Encryption failed:', err.message);
@@ -32,33 +33,28 @@ async function createAuthenticator(user_details){
 
     console.log('User Details:', user_details);
 
-    fs.writeFileSync('user_details.json', JSON.stringify(user_details, null, 2));
-
     const otpauth = authenticator.keyuri(user_details.email,"MyAwesomeApp", secret);
-    
-    // Render the QR code in the terminal for quick scanning
-    qrcode.toString(otpauth, { type: 'terminal', small: true }, (err, qr) => {
-      if (err) {
-        console.error('Failed to generate QR code:', err);
-        return {
-          message: 'QR code generation failed.',
-          status: 500
-        };
-      }
-      console.log('\nScan this QR for OTP setup:\n');
-      console.log(qr);
-    });
 
+    return {
+      message: 'Authenticator created successfully',
+      otpauth_url: otpauth,
+      user_details: user_details,
+      status: 201
+    }
   }
 }
 
 
 async function verifyAuthenticator(user_details,token){
-  if(!user_details.twoFactorEnabled && user_details.twoFactorSecret){
+
+  console.log('Verifying authenticator for user details:', user_details, 'with token:', token);
+
+  if(!user_details.twoFactorEnable && user_details.twoFactorSecrets){
+
     try{
         const decryptedSecret = await decryptionKey(
-          user_details.twoFactorSecret.cipherText,
-          user_details.twoFactorSecret.nonce,
+          user_details.twoFactorSecrets.cipherText,
+          user_details.twoFactorSecrets.nonce,
           await deriveKeyFromPassphrase(twoFactorPassphrase)
         );
   
@@ -70,15 +66,30 @@ async function verifyAuthenticator(user_details,token){
           window: 2
         });
 
-        saveUserDetails({
-          ...user_details,
-          twoFactorEnabled: isValid ? true : false
-        });
-      
-        return {
-          verificationStatus: isValid ? "success" : "failure",
-          status: 200
-        };
+
+        try{
+
+         if(isValid){
+           const res = await updateUser2FA(user_details._id, true);
+           return {
+             verificationStatus: "success" ,
+             status: 200,
+             twoStepUpdate: res.data.twoFactorEnable
+           };
+         }else{
+            return {
+              verificationStatus: "failure",
+              status: 200
+            };
+         }
+        }
+        catch(err){
+          console.error('Failed to update 2FA status in database:', err.message);
+          return {
+            verificationStatus: "error_updating_status",
+            status: 500
+          };
+        }      
     }
     catch(err){
       console.error('Decryption failed:', err.message);
@@ -88,7 +99,7 @@ async function verifyAuthenticator(user_details,token){
       };
     }
   }
-  else if(user_details.twoFactorEnabled && user_details.twoFactorSecret){
+  else if(user_details.twoFactorEnable && user_details.twoFactorSecrets){
     return {
       verificationStatus: "already_enabled",
       status: 200
@@ -105,7 +116,7 @@ async function verifyAuthenticator(user_details,token){
 }
 
 
-module.exports = {
+export {
   createAuthenticator,
   verifyAuthenticator
 };

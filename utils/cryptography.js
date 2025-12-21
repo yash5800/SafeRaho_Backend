@@ -1,4 +1,5 @@
-const sodium = require('libsodium-wrappers');
+import crypto from 'crypto';
+import sodium from 'libsodium-wrappers';
 
 // Ensure libsodium is initialized before using any API
 async function encryptionKey(text, key) {
@@ -48,7 +49,6 @@ async function deriveKeyFromPassphrase(passphrase, salt = null) {
   const KEYBYTES = sodium.crypto_aead_xchacha20poly1305_ietf_KEYBYTES;
 
   // Fallback to Node's scrypt KDF (synchronous) for broad compatibility
-  const crypto = require('crypto');
 
   // Salt: 16 bytes. If not provided, derive deterministic salt from passphrase.
   let saltBuf;
@@ -65,7 +65,7 @@ async function deriveKeyFromPassphrase(passphrase, salt = null) {
   return new Uint8Array(keyBuf);
 }
 
-module.exports = {
+export {
   encryptionKey,
   decryptionKey,
   deriveKeyFromPassphrase
