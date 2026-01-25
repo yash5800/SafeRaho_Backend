@@ -16,6 +16,7 @@ export const verifyAccessToken = (req, res, next) => {
   }
 
   const token = authHeader.split(' ')[1]; // Extract token part
+  console.log('Extracted Token:', token);
 
   // Verify token and extract payload
   try{
@@ -51,5 +52,36 @@ export const verifyAccessToken = (req, res, next) => {
         error: 'INVALID_TOKEN'
       })
     }
+  }
+}
+
+
+export const verifyResetToken = (req, res, next) => {
+  const header = req.headers.authorization;
+
+  // Check for Bearer token example: 'Bearer <token>'
+  if(!header || !header.startsWith('Bearer ')){
+    return res.status(401).send({
+      message: 'Access token missing or malformed',
+      status: 401
+    });
+  }
+
+  const token = header.split(' ')[1]; // Extract token part
+
+  try {
+    const payload = jwt.verify(token, process.env.RESET_SECRET);
+
+    if (payload.purpose !== "password_reset") {
+      return res.status(403).send({ 
+        message: "Invalid token purpose" 
+      });
+    }
+
+    next();
+  } catch {
+    return res.status(401).send({ 
+      message: "Invalid or expired token" 
+    });
   }
 }

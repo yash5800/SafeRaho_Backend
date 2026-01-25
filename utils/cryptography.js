@@ -65,6 +65,39 @@ async function deriveKeyFromPassphrase(passphrase, salt = null) {
   return new Uint8Array(keyBuf);
 }
 
+export const generateKey = async (
+  text,
+  salt,
+  cost = 100_000,
+  length = 256
+) => {
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(
+      text,
+      salt,
+      cost,
+      length / 8,        // bits → bytes
+      "sha256",
+      (err, derivedKey) => {
+        if (err) return reject(err);
+
+        const hexKey = derivedKey.toString("hex");
+
+        console.log(`Generated key of length: ${hexKey.length / 2} bytes`);
+
+        if (hexKey.length !== 64) {
+          return reject(
+            new Error(`Invalid key length: ${hexKey.length / 2} bytes`)
+          );
+        }
+
+        resolve(hexKey);
+      }
+    );
+  });
+};
+
+
 export {
   encryptionKey,
   decryptionKey,

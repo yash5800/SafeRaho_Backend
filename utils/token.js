@@ -3,6 +3,7 @@ import 'dotenv/config'
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
+const RESET_TOKEN_TTL = '10m';
 
 export const signAccessToken = (user) => {
   return jwt.sign(
@@ -25,4 +26,15 @@ export const signRefreshToken = (user) => {
     process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: REFRESH_TOKEN_TTL }
   )
+}
+
+export const issueResetToken = (user) => {
+  return jwt.sign(
+    {
+      uid: user.accountUUID,
+      purpose: "password_reset"
+    },
+    process.env.RESET_SECRET,
+    { expiresIn: RESET_TOKEN_TTL }
+  );
 }

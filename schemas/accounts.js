@@ -31,8 +31,38 @@ export default defineType({
       validation: Rule => Rule.required()
     }),
     defineField({
-      name: 'passwordHashed',
-      title: 'Password Hashed',
+      name: 'auth_salt',
+      title: 'Auth Salt',
+      type: 'string',
+      validation: Rule => Rule.required()
+    }),
+    defineField({
+      name: 'authHashed',
+      title: 'Auth Hashed',
+      type: 'string',
+      validation: Rule => Rule.required()
+    }),
+    defineField({
+      name: 'pk_salt',
+      title: 'PK Salt',
+      type: 'string',
+      validation: Rule => Rule.required()
+    }),
+    defineField({
+      name: 'encryptedMasterKey',
+      title: 'Encrypted Master Key',
+      type: 'string',
+      validation: Rule => Rule.required()
+    }),
+    defineField({
+      name: 'rk_salt',
+      title: 'RK Salt',
+      type: 'string',
+      validation: Rule => Rule.required()
+    }),
+    defineField({
+      name: 'encryptedRecoveryMasterKey',
+      title: 'Encrypted Recovery Master Key',
       type: 'string',
       validation: Rule => Rule.required()
     }),
@@ -42,30 +72,42 @@ export default defineType({
       type: 'datetime'
     }),
     defineField({
-      name: 'twoFactorSecrets',
-      title: '2FA Secret (hashed)',
-      type: 'document',
-      fields: [
-        defineField({
-          name: 'cipherText',
-          title: 'Cipher Text',
-          type: 'string',
-          validation: Rule => Rule.required()
-        }),
-        defineField({
-          name: 'nonce',
-          title: 'Nonce',
-          type: 'string',
-          validation: Rule => Rule.required()
-        }),
-      ],
+      name: 'recoveryKeyHashSalt',
+      title: 'Recovery Key Hash Salt',
+      type: 'string',
       validation: Rule => Rule.required()
     }),
     defineField({
-      name: 'twoFactorEnabled',
-      title: 'Two Factor Enabled',
-      type: 'boolean',
+      name: 'recoveryKeyHash',
+      title: 'Recovery Key Hash',
+      type: 'string',
       validation: Rule => Rule.required()
-    })
+    }),
+    // defineField({
+    //   name: 'twoFactorSecrets',
+    //   title: '2FA Secret (hashed)',
+    //   type: 'document',
+    //   fields: [
+    //     defineField({
+    //       name: 'cipherText',
+    //       title: 'Cipher Text',
+    //       type: 'string',
+    //       validation: Rule => Rule.required()
+    //     }),
+    //     defineField({
+    //       name: 'nonce',
+    //       title: 'Nonce',
+    //       type: 'string',
+    //       validation: Rule => Rule.required()
+    //     }),
+    //   ],
+    //   validation: Rule => Rule.required()
+    // }),
+    // defineField({
+    //   name: 'twoFactorEnabled',
+    //   title: 'Two Factor Enabled',
+    //   type: 'boolean',
+    //   validation: Rule => Rule.required()
+    // })
   ]
 });
