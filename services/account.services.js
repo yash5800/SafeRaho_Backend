@@ -1,3 +1,4 @@
+import { ca } from "zod/locales";
 import client  from "../sanityClient.js";
 import { verifyPassword } from "../utils/passwordHash.js";
 import { AccountSchema } from "../validators/account.schema.js";
@@ -36,13 +37,6 @@ async function addUser(details){
         error : 'FORBIDDEN_OPERATION'
        }
     }
-      // accountType: 'general',
-      // accountName: data.userName,
-      // email: data.email,
-      // pk_salt: pk_salt,
-      // encryptedMasterKey: encryptedMasterKey,
-      // rk_salt: rk_salt,
-      // encryptedRecoveryMasterKey: recoveryKeyData.encryptedRecoveryMasterKey
 
     console.log('Creating user with details:', details);
 
@@ -62,9 +56,29 @@ async function addUser(details){
         authHash: details.authHash,
         recoveryKeyHashSalt: details.recoveryKeyHashSalt,
         recoveryKeyHash: details.recoveryKeyHash
-      })
+    })
 
     console.log('User added to Sanity with ID:', res);
+
+    const plainData = await client.fetch(`*[_type == "storagePlans" && plan_name == "Free"][0]{
+      _id,
+      plan_name,
+      storage_limit_gb
+    }`);
+
+    console.log('Free plan data fetched:', plainData);
+
+    const subscriptionRes = await client.create({
+      _type: 'subscriptions',
+      account_id: res._id,
+      storage_plan_id: plainData._id,
+      status: 'active',
+      _createdAt: new Date().toISOString(),
+      _updatedAt: new Date().toISOString(),
+      _endedAt: null
+    });
+
+    console.log('Subscription created:', subscriptionRes);
     
     return {
         message : 'User added successfully',
@@ -77,7 +91,10 @@ async function addUser(details){
           secret : {
             pk_salt: res.pk_salt,
             encryptedMasterKey: res.encryptedMasterKey
-          }
+          },
+          plan_name: plainData.plan_name,
+          storage_limit_gb: plainData.storage_limit_gb,
+          subscription_status: subscriptionRes.status
         },
         status : 201
       }
@@ -131,6 +148,21 @@ async function getUserBy(data){
     'recoveryKeyHash':{
       name: 'accountName',
       fields: '_id ,accountUUID, accountName, recoveryKeyHash'
+    },
+    'subscription':{
+      name: '_id',
+      fields: `
+        _id,
+        account_id,
+        storage_plan_id,
+        status,
+        _createdAt,
+        _updatedAt,
+        _endedAt
+      `
+    },
+    'storagePlans':{
+
     }
   }
 
@@ -166,6 +198,61 @@ async function getUserBy(data){
   catch(error){
     return {
       message : 'Error fetching user',
+      status : 500,
+      error: "INTERNAL_SERVER_ERROR"
+    }
+  }
+}
+
+async function getUserSubscription(accountId){
+  if(!accountId){
+    return {
+      message : 'Account ID is required',
+      status : 400,
+      error: "VALIDATION_ERROR"
+    }
+  }
+
+  console.log('Fetching subscription for accountId:', accountId);
+
+  try{
+    const query1 = `*[_type == "subscriptions" && account_id == $accountId][0]{
+      _id,
+      account_id,
+      storage_plan_id,
+      status,
+      _createdAt,
+      _updatedAt,
+      _endedAt
+    }`;
+    const params1 = { accountId };
+
+    const subscriptionData = await client.fetch(query1, params1);
+    console.log('User Data:', subscriptionData);
+
+    const query2 = `*[_type == "storagePlans" && _id == $planId][0]{
+      _id,
+      plan_name,
+      storage_limit_gb
+    }`;
+    const params2 = { planId: subscriptionData.storage_plan_id };
+
+    const planData = await client.fetch(query2, params2);
+    console.log('Plan Data:', planData);
+    return {
+      status: 200,
+      message: 'Subscription fetched successfully',
+      data: {
+          plan_name: planData.plan_name,
+          storage_limit_gb: planData.storage_limit_gb,
+          subscription_status: subscriptionData.status
+      }
+    }
+  
+  }
+  catch(error){
+    return {
+      message : 'Error fetching subscription',
       status : 500,
       error: "INTERNAL_SERVER_ERROR"
     }
@@ -376,8 +463,7 @@ async function uploadUserFiles(data){
     }
   }
 }
-
-async function uploadUserFilesPreview(
+async function uploadUserFilePreview(
   userId,
   fileId,
   encryptedPreview,
@@ -391,7 +477,7 @@ async function uploadUserFilesPreview(
       error: "VALIDATION_ERROR"
     }
   }
-  
+
   try{
 
     // Stringify 
@@ -432,6 +518,42 @@ async function uploadUserFilesPreview(
       error: "INTERNAL_SERVER_ERROR"
     }
   }
+}
+
+async function uploadUserVault(data){
+  
+  if(!data.userId || !data.vaultData){
+    return {
+      message : 'User ID and items and type are required',
+      status : 400,
+      error: "VALIDATION_ERROR"
+    }
+  }
+
+  try{
+
+    const res = await client.create({
+      _type:'vaultItems',
+      accountId: data.userId,
+      ...data.vaultData
+    })
+
+    console.log('Vault data uploaded:', res);
+
+    return {
+      message : 'Vault data uploaded successfully',
+      data : res,
+      status : 201
+    }
+
+  } catch(error){
+    return {
+      message : 'Error uploading vault data',
+      status : 500,
+      error: "INTERNAL_SERVER_ERROR"
+    }
+  }
+  
 }
 
 async function CheckUserBy(){
@@ -503,6 +625,11 @@ async function getUserData(data){
         "url": assetId->url,
         _createdAt
       `
+    },
+    'vaultItems':{
+      name: 'accountId',
+      collection: "vaultItems",
+      fields: `...`
     }
   }
 
@@ -547,4 +674,39 @@ async function getUserData(data){
 
 }
 
-export { addUser, getUserBy, updateUserPwd  , updateUser2FA , CheckUserBy, updateUserDetails, uploadUserFiles, getUserData, uploadUserFilesPreview}; 
+
+// Deletion methods
+async function deleteUserFiles(userId, fileId) {
+  if (!userId || !fileId) {
+    return {
+      message: "All file deletion parameters are required",
+      status: 400,
+      error: "VALIDATION_ERROR",
+    };
+  }
+
+  const cleanFileId = fileId.startsWith(":")
+    ? fileId.slice(1)
+    : fileId;
+
+  try {
+    await client.delete(cleanFileId);
+
+    await client.delete({
+      query: `*[_type == "vaultFilePreview" && fileId == "${cleanFileId}"]`,
+    });
+
+    return { status: 200, success: true };
+  } catch (error) {
+    console.error("Error Deleting file:", error);
+    return {
+      message: "Error deleting file",
+      status: 500,
+      error: "INTERNAL_SERVER_ERROR",
+    };
+  }
+}
+
+
+
+export { addUser, getUserBy, updateUserPwd  , updateUser2FA , CheckUserBy, updateUserDetails, uploadUserFiles, getUserData, uploadUserFilePreview, deleteUserFiles, getUserSubscription, uploadUserVault }; 
