@@ -20,7 +20,16 @@ app.use(cors({
 }));
 app.use(express.json({limit: '10mb'}));
 
-const redis = new Redis();
+const redis = new Redis(process.env.REDIS_URL);
+
+redis.on("connect", () => {
+  console.log("✅ Redis connected");
+});
+
+redis.on("error", (err) => {
+  console.error("❌ Redis error:", err.message);
+});
+
 
 const receive_demo = {
   "accountType": "user",
