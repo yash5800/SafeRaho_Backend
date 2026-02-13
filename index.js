@@ -1,4 +1,4 @@
-import { addUser , CheckUserBy, getUserBy, getUserData, updateUserDetails, uploadUserFiles, uploadUserFilesPreview } from "./services/account.services.js";
+import { addUser , deleteUserFiles, getUserBy, getUserData, updateUserDetails, uploadUserFiles, uploadUserFilePreview, getUserSubscription, uploadUserVault } from "./services/account.services.js";
 import express from "express";
 import { v4 as uuidv4 } from 'uuid';
 import { createAuthenticator, verifyAuthenticator } from "./utils/aunthenticator.js";
@@ -11,7 +11,6 @@ import 'dotenv/config'
 import Redis from "ioredis";
 import crypto from "crypto";
 import { generateKey } from "./utils/cryptography.js";
-import { type } from "os";
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -438,6 +437,17 @@ app.post("/api/signin/check2", async (req, res) => {
 
       console.log('User data retrieved for user:', userData.data);
 
+      // update last login time
+      await updateUserDetails({
+        type: 'lastLogin',
+        payload: {
+          _id: userData.data._id
+        }
+      });
+
+      const subscriptionData = await getUserSubscription(userData.data._id);
+      console.log('Subscription data retrieved for user:', subscriptionData.data);
+
       const accessToken = signAccessToken(userData.data);
       const refreshToken = signRefreshToken(userData.data);
 
@@ -453,7 +463,8 @@ app.post("/api/signin/check2", async (req, res) => {
           secret : {
             pk_salt: userData.data.pk_salt,
             encryptedMasterKey: userData.data.encryptedMasterKey
-          }
+          },
+          ...subscriptionData.data
         },
         tokens: {
           accessToken,
@@ -493,7 +504,7 @@ app.post("/api/signin/check2", async (req, res) => {
 
 
 //Uploading Files to Sanity
-app.post("/api/upload-chunk", async (req, res) => {
+app.post("/api/upload-chunk",verifyAccessToken, async (req, res) => {
   try{
     const { data } = req.body;
 
@@ -528,8 +539,10 @@ app.post("/api/upload-chunk", async (req, res) => {
   }
 });
 
-app.post("/api/files/filesMetadata", async (req,res) => {
+app.post("/api/files/filesMetadata",verifyAccessToken, async (req,res) => {
   const { userId } = req.body;
+
+  console.log('userId received for files metadata:', userId);
 
   if(!userId){
     return res.status(400).send({
@@ -563,7 +576,7 @@ app.post("/api/files/filesMetadata", async (req,res) => {
   }
 });
 
-app.post("/api/uploadFilePreview", async (req,res) => {
+app.post("/api/uploadFilePreview", verifyAccessToken, async (req,res) => {
   const { userId, fileId, encryptedPreview, encryptedPreviewKey, version, } = req.body;
 
   console.log('Received file preview request for userId:', userId, 'fileId:', fileId, 'version:', version);
@@ -576,7 +589,7 @@ app.post("/api/uploadFilePreview", async (req,res) => {
   }
   
   try{
-    const result = await uploadUserFilesPreview(
+    const result = await uploadUserFilePreview(
       userId,
       fileId,
       encryptedPreview,
@@ -601,7 +614,7 @@ app.post("/api/uploadFilePreview", async (req,res) => {
   }
 });
 
-app.post("/api/files/filePreviewMetadata", async (req,res) => {
+app.post("/api/files/filePreviewMetadata", verifyAccessToken, async (req,res) => {
   const { userId } = req.body;
   if(!userId){
     return res.status(400).send({
@@ -635,34 +648,144 @@ app.post("/api/files/filePreviewMetadata", async (req,res) => {
   } 
 });
 
-app.post("/api/verify2FA", async (req,res) => {
-  const {id , otp:token} = req.body;
+// Deletion Area
+app.delete("/api/files/deleteFile/:userId/:fileId", verifyAccessToken, async (req,res) => {
+  const { userId, fileId } = req.params;
 
-  console.log('Received 2FA verification request for ID:', id, 'with token:', token);
+  console.log('Received file deletion request for userId:', userId, 'fileId:', fileId);
 
-  const user_details = await getUserBy({type: 'id', payload: id});
-
-  if(user_details.status !== 200){
-    return res.status(user_details.status).send(user_details);
+  if(!userId || !fileId){
+    return res.status(400).send({
+      message: 'userId and fileId are required.',
+      status: 400
+    });
   }
-
-  console.log('User details fetched for verification:', user_details);
-
+  
   try{
-    const result = await verifyAuthenticator(user_details.data,token);
+    const result = await deleteUserFiles(userId,fileId)
 
-    console.log('Verification result:', result);
+    if(result.status !== 200){
+      return res.status(result.status).send(result);
+    }
+
+    console.log('File deleted successfully:', result);
 
     res.status(result.status).send(result);
   }
   catch(err){
-    console.error('Verification failed:', err.message);
+    console.error('Error deleting file:', err.message);
     return res.status(500).send({
-      message: 'Verification failed.',
+      message: 'Error deleting file',
       status: 500
     });
   }
-})
+});
+
+app.post("/api/vault/upload", verifyAccessToken, async (req,res) => {
+  const { userId, vaultData } = req.body;
+
+  console.log('Received vault upload request for userId:', userId, 'vaultData:', vaultData);
+
+  if(!userId || !vaultData){
+    return res.status(400).send({
+      message: 'userId and vaultData are required.',
+      status: 400
+    });
+  }
+  
+  try{
+    const result = await uploadUserVault(
+      {
+        userId,
+        vaultData
+      }
+    )
+
+    if(result.status !== 201){
+      return res.status(result.status).send(result);
+    }
+
+    console.log('Vault data uploaded:', result);
+
+    res.status(result.status).send(result);
+  }
+  catch(err){
+    console.error('Error uploading vault data:', err.message);
+    return res.status(500).send({
+      message: 'Error uploading vault data',
+      status: 500
+    });
+  }
+});
+
+app.get("/api/vault/items", verifyAccessToken, async (req,res) => {
+  const { userId } = req.query;
+
+  console.log('Received vault data request for userId:', userId);
+
+  if(!userId){
+    return res.status(400).send({
+      message: 'userId is required.',
+      status: 400
+    });
+  }
+  
+  try{
+    const result = await getUserData({
+      type: 'vaultItems',
+      payload: userId
+    })
+
+    if(result.status !== 200){
+      return res.status(result.status).send(result);
+    }
+
+    console.log('Vault data retrieved:', result);
+
+    const data = {
+      ...result,
+      data: result.data.map(({ _rev, _type, ...rest }) => rest)
+    }
+
+    res.status(result.status).send(data);
+  }
+  catch(err){
+    console.error('Error fetching vault data:', err.message);
+    return res.status(500).send({
+      message: 'Error fetching vault data',
+      status: 500
+    });
+  } 
+});
+
+// app.post("/api/verify2FA", verifyAccessToken, async (req,res) => {
+//   const {id , otp:token} = req.body;
+
+//   console.log('Received 2FA verification request for ID:', id, 'with token:', token);
+
+//   const user_details = await getUserBy({type: 'id', payload: id});
+
+//   if(user_details.status !== 200){
+//     return res.status(user_details.status).send(user_details);
+//   }
+
+//   console.log('User details fetched for verification:', user_details);
+
+//   try{
+//     const result = await verifyAuthenticator(user_details.data,token);
+
+//     console.log('Verification result:', result);
+
+//     res.status(result.status).send(result);
+//   }
+//   catch(err){
+//     console.error('Verification failed:', err.message);
+//     return res.status(500).send({
+//       message: 'Verification failed.',
+//       status: 500
+//     });
+//   }
+// })
 
 app.get("/api/auth/amireal", verifyAccessToken, (req,res) => {
      res.status(200).send({
