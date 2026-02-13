@@ -48,6 +48,10 @@ const receive_demo = {
 //   twoFactorSecrets: details.twoFactorSecrets
 // }
 
+app.get("/", async (req,res) => {
+  return res.status(200).send({message:"working on server"})
+})
+
 app.post("/api/signup", async (req,res) => {
   const raw_details = req.body;
 
